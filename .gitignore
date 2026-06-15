@@ -1,0 +1,48 @@
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_/cache/
+.ruff_/cache/
+
+# Local environments
+.venv/
+venv/
+env/
+.conda/
+
+# Data, generated results, and artifacts are intentionally excluded
+/data/
+/outputs/
+/figures/
+/tables/
+/bundle/
+/cache/
+/progress/
+/artifacts/
+/artifacts_secondary/
+*.csv
+*.tsv
+*.xlsx
+*.nc
+*.grib
+*.grb
+*.zarr
+*.npz
+*.npy
+*.pkl
+*.pickle
+*.joblib
+*.zip
+*.png
+*.jpg
+*.jpeg
+*.pdf
+*.parquet
+*.feather
+
+# Local IDE/system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
