@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from argparse import Namespace
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -16,6 +17,7 @@ from cem_wf_index.supplementary.physical_metric_ablation import (
 )
 from cem_wf_index.supplementary.run_evaluation import evaluate, main
 from cem_wf_index.supplementary.statistics import paired_bootstrap_interval
+from cem_wf_index.supplementary.published_evidence import verify_published_evidence
 
 
 TEMPORAL_FOLDS = [
@@ -232,3 +234,44 @@ def test_supplementary_readme_limits_public_result_summary():
     assert "0.148" in text and "469 km" in text
     assert "formal test remains unopened" in text
     assert "manuscript's main held-out test tables" in text
+
+
+def test_anonymous_public_evidence_reproduces_reported_results():
+    evidence = Path(__file__).resolve().parents[1] / "supplementary" / "evidence"
+    result = verify_published_evidence(evidence)
+
+    climate = result["climatenet_portability"]
+    assert climate["control_mean"] == pytest.approx(0.5746805273)
+    assert climate["cem_mean"] == pytest.approx(0.6631771177)
+    assert climate["gain"] == pytest.approx(0.0884965905)
+    assert climate["ci95"] == pytest.approx([0.0679602931, 0.1094292903])
+    assert climate["all_temporal_folds_positive"] is True
+    assert climate["seed_mean"] == pytest.approx(0.6631771177)
+    assert climate["five_seed_sd"] == pytest.approx(0.0034445708)
+    assert climate["model_seed_count"] == 5
+
+    matched = result["matched_scoring"]
+    assert matched["control_mean"] == pytest.approx(0.3966762422)
+    assert matched["cem_mean"] == pytest.approx(0.4980782698)
+    assert matched["gain"] == pytest.approx(0.1014020276)
+    assert matched["ci95"] == pytest.approx([0.0541534407, 0.1490239264])
+    assert matched["bootstrap_seed"] == 240813
+    assert matched["acorn_relevant_at20"] == pytest.approx(4.4193548387)
+    assert matched["cem_pool_relevant_at20"] == pytest.approx(7.9677419355)
+
+    physical = result["physical_metric_ablation"]
+    assert physical["gain"] == pytest.approx(0.1475719619)
+    assert physical["ci95"] == pytest.approx([0.1145335711, 0.1808469085])
+    assert physical["all_temporal_folds_positive"] is True
+    assert physical["track_rmse_reduction_km"] == pytest.approx(468.5683629)
+
+    diversity = result["candidate_diversity"]
+    assert all(row["unique_event_ratio"] == 1.0 for row in diversity)
+    assert [row["early_tnms_reduction"] for row in diversity] == pytest.approx(
+        [0.0612372881, 0.0935530086]
+    )
+    audit = result["audit_export"]
+    assert audit["field_completeness"] == 1.0
+    assert audit["score_consistency"] == 1.0
+    assert audit["leakage_check_pass_rate"] == 1.0
+    assert audit["p95_overhead_ms_per_query"] == pytest.approx(0.197315)

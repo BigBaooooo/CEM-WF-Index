@@ -104,6 +104,9 @@ def test_candidate_fusion_retains_context_evidence_without_direct_score_claim():
                 {"candidate_id": "b", "rank": 1, "distance": 0.3, "provenance": "context-index"},
                 {"candidate_id": "c", "rank": 2, "distance": 0.4, "provenance": "context-index"},
             ],
+            "metadata": [
+                {"candidate_id": "c", "rank": 1, "distance": 0.2, "provenance": "metadata-index"},
+            ],
         },
         limit=3,
     )
@@ -115,6 +118,8 @@ def test_candidate_fusion_retains_context_evidence_without_direct_score_claim():
     assert by_id["a"]["source_context_rank"] == 4
     assert by_id["b"]["source_event_rank"] == 2
     assert by_id["b"]["direct_context_score_status"] == "not_selected_by_validation"
+    assert by_id["c"]["source_membership"] == ["context", "metadata"]
+    assert by_id["c"]["source_metadata_rank"] == 1
 
 
 def _candidate(candidate_id: str, event_id: str, start: str, end: str, rank: int) -> dict[str, object]:
@@ -160,6 +165,8 @@ def test_synthetic_pipeline_runs_all_public_stages():
     assert payload["top_k"]
     assert payload["audit"]["context_stage"]["backend"] == "exact"
     assert payload["audit"]["candidate_generation"]["source_ranks_and_provenance_retained"] is True
+    assert payload["audit"]["candidate_generation"]["sources"] == ["event", "context", "metadata"]
+    assert any("metadata" in row["source_membership"] for row in payload["top_k"])
     assert payload["audit"]["output"]["event_distinct"] is True
     assert payload["audit"]["leakage_check"] == {
         "uses_validation_or_test_labels_at_inference": False,

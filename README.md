@@ -4,6 +4,9 @@ This repository is the inspectable source-code portion of the CEM-WF-Index revie
 
 With the declared external inputs, the code executes the released ranking protocol; the repository also provides a data-free synthetic workflow for immediate inspection. See [ARTIFACT_MANIFEST.md](ARTIFACT_MANIFEST.md) for the component/data contract and [REVIEW_ALIGNMENT.md](REVIEW_ALIGNMENT.md) for reviewer-item correspondence.
 
+The precomputed ERA5 background-context archive is distributed through the
+[rebuttal artifact release](https://github.com/BigBaooooo/CEM-WF-Index/releases/tag/rebuttal-artifact).
+
 ## Quick Start
 
 Use Python 3 with `numpy`, `pandas`, `scikit-learn`, `lightgbm`, and `pytest`. From the repository root:
@@ -52,7 +55,7 @@ python -m scripts.run_synthetic_pipeline --help
 python -m scripts.run_synthetic_pipeline
 ```
 
-The example composes a `FingerprintArchive`, a `ContextIndex`, event/context candidate fusion, early temporal NMS, event deduplication, and a structured audit. Fused rows carry source ranks, channel provenance, and `score_context_rank_prior`. They remain upstream candidate evidence: the frozen final-score stage consumes candidate rows, and validation did not select an additional direct context-score term.
+The example composes a `FingerprintArchive`, a `ContextIndex`, event/context/metadata candidate fusion, early temporal NMS, event deduplication, and a structured audit. Fused rows carry source ranks, channel provenance, and `score_context_rank_prior`. They remain upstream candidate evidence: the frozen final-score stage consumes candidate rows, and validation did not select an additional direct context-score term.
 
 ## Released Ranking Protocol
 
@@ -85,8 +88,10 @@ The frozen model constructor records `subsample=0.90` and
 `colsample_bytree=0.90`; this completion does not change its training behavior.
 
 The complete experimental protocol is consolidated here together with the
-released context input and reviewer-requested development evaluators. No
-machine-specific hardware value is inserted into the public contract.
+released context input and reviewer-requested development evaluators.
+
+The verified software environment is Python 3.10.20, NumPy 2.2.6, pandas
+2.3.3, scikit-learn 1.7.2, LightGBM 4.6.0, and hnswlib 0.8.0.
 
 ## Candidate and Feature Contract
 

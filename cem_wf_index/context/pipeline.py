@@ -47,6 +47,7 @@ def run_retrieval_pipeline(
     top_k: int = 20,
     cadence: str | int = "6h",
     context_index: ContextIndex | None = None,
+    metadata_candidates: Sequence[Mapping[str, Any]] | None = None,
     overlap_threshold: float = 0.5,
 ) -> PipelineResult:
     """Run the public stage composition without refitting the final scorer."""
@@ -63,7 +64,7 @@ def run_retrieval_pipeline(
         raise ValueError("archive_events require event_id or candidate_id")
     groups = [None if row.get("group_id") is None else str(row["group_id"]) for row in rows]
     vectors = np.stack([_event_vector(archive, row, cadence) for row in rows]).astype(np.float32)
-    index = context_index or ContextIndex(dimension=archive.dimension)
+    index = context_index if context_index is not None else ContextIndex(dimension=archive.dimension)
     index.fit(vectors, ids, group_ids=groups)
     query_vector = _event_vector(archive, query_event, cadence)
     hits = index.search(
@@ -97,10 +98,29 @@ def run_retrieval_pipeline(
             continue
         eligible_event_rows.append(row)
 
-    fused = fuse_candidate_channels(
-        {"event": eligible_event_rows, "context": context_rows},
-        limit=candidate_limit,
-    )
+    eligible_metadata_rows: list[dict[str, Any]] = []
+    for raw in metadata_candidates or ():
+        row = dict(raw)
+        candidate_id = str(row.get("candidate_id", row.get("event_id", "")))
+        if not candidate_id:
+            raise ValueError("metadata_candidates require candidate_id or event_id")
+        metadata = metadata_by_id.get(candidate_id, {})
+        for key, value in metadata.items():
+            row.setdefault(key, value)
+        row["candidate_id"] = candidate_id
+        same_group = query_group is not None and str(row.get("group_id")) == str(query_group)
+        if candidate_id == query_id or same_group:
+            excluded_ids.append(candidate_id)
+            continue
+        eligible_metadata_rows.append(row)
+
+    candidate_channels: dict[str, Sequence[Mapping[str, Any]]] = {
+        "event": eligible_event_rows,
+        "context": context_rows,
+    }
+    if metadata_candidates is not None:
+        candidate_channels["metadata"] = eligible_metadata_rows
+    fused = fuse_candidate_channels(candidate_channels, limit=candidate_limit)
     nms = early_temporal_nms(
         fused,
         overlap_threshold=overlap_threshold,
@@ -152,7 +172,7 @@ def run_retrieval_pipeline(
             "direct_context_score_status": "not_selected_by_validation",
         },
         candidate_generation={
-            "sources": ["event", "context"],
+            "sources": list(candidate_channels),
             "fused_candidate_count": len(fused),
             "reranker_candidate_count": len(reranker_input),
             "source_ranks_and_provenance_retained": True,

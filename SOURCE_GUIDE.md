@@ -1,6 +1,8 @@
 # Source Guide
 
-This guide maps the paper-level method description to the executable source. It describes code correspondence, not numeric-result provenance; generated measurements and datasets are outside this repository.
+This guide maps the paper-level method description to the executable source.
+The focused reviewer-requested measurements and their anonymous verification
+inputs are documented separately in `supplementary/`.
 
 ## Paper-to-Code Map
 
@@ -14,7 +16,7 @@ This guide maps the paper-level method description to the executable source. It 
 | Physical consistency | `cem_wf_index/final_release/physical_errors.py` | Computes top-one track, pressure, wind, and approximate landfall errors after ranking; these CMA-derived values are evaluation-only. |
 | Precomputed context archive | `cem_wf_index/context/fingerprints.py` | Validates and exposes separately supplied precomputed ERA5 background-context fingerprints and their timestamps. |
 | Context retrieval | `cem_wf_index/context/index.py` | Builds the upstream context index and returns ranked context candidates. |
-| Multi-channel candidate fusion | `cem_wf_index/context/candidates.py` | Unions event/context candidates, deduplicates identifiers, and emits source ranks, provenance, and the context reciprocal-rank prior. |
+| Multi-channel candidate fusion | `cem_wf_index/context/candidates.py` | Unions event/context/metadata candidates, deduplicates identifiers, and emits source ranks, provenance, and the context reciprocal-rank prior. |
 | Early diversity control | `cem_wf_index/context/temporal.py` | Applies early temporal NMS, event deduplication, and unique-event-ratio diagnostics before final ranking. |
 | Candidate-stage audit | `cem_wf_index/context/audit.py` | Emits structured records for profile, sources/provenance, context stage, exclusions, diversity controls, frozen train-graph origin, and leakage checks. |
 | Synthetic upstream composition | `cem_wf_index/context/pipeline.py`, `scripts/run_synthetic_pipeline.py` | Demonstrates the context-to-candidate contract using synthetic data only. |
@@ -104,7 +106,7 @@ The public upstream reference has this one-way interface:
 ```text
 precomputed background-context fingerprints
   -> ContextIndex ranked candidates
-  -> event/context union + provenance + context reciprocal-rank prior
+  -> event/context/metadata union + provenance + context reciprocal-rank prior
   -> early temporal NMS and event deduplication
   -> candidate rows consumed by the frozen ranking stage
 ```

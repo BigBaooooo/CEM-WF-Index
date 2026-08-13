@@ -15,7 +15,7 @@ caller-supplied inputs activate each data-dependent stage.
 | `cem_wf_index/final_release/physical_errors.py` | Evaluation-only top-one physical metrics | No; needs caller-prepared CMA/mapping/descriptor files |
 | `cem_wf_index/context/fingerprints.py` | Precomputed ERA5 background-context archive contract | Yes, with synthetic or separately supplied arrays |
 | `cem_wf_index/context/index.py` | Context candidate indexing/search | Yes, with synthetic arrays |
-| `cem_wf_index/context/candidates.py` | Event/context union, source ranks, and provenance | Yes, with synthetic candidate lists |
+| `cem_wf_index/context/candidates.py` | Event/context/metadata union, source ranks, and provenance | Yes, with synthetic candidate lists |
 | `cem_wf_index/context/temporal.py` | Early temporal NMS, event deduplication, and diversity diagnostics | Yes, with synthetic events |
 | `cem_wf_index/context/audit.py` | Structured candidate-stage audit schema | Yes, with synthetic records |
 | `cem_wf_index/context/pipeline.py` | Composition of the synthetic upstream reference | Yes |
@@ -24,17 +24,22 @@ caller-supplied inputs activate each data-dependent stage.
 | `cem_wf_index/supplementary/climatenet_portability.py` | ClimateNet development-study contract and aggregation | No; needs query-level JSON |
 | `cem_wf_index/supplementary/matched_scoring.py` | Matched downstream-scoring contract and aggregation | No; needs query-level JSON |
 | `cem_wf_index/supplementary/physical_metric_ablation.py` | Task-conditioned physical-metric development ablation | No; needs query-level JSON |
-| `cem_wf_index/supplementary/run_evaluation.py` | CLI dispatch for the three supplementary evaluators | `--help` only |
+| `cem_wf_index/supplementary/published_evidence.py` | Recomputes reviewer-facing summaries from anonymous query rows | Yes |
+| `cem_wf_index/supplementary/run_evaluation.py` | CLI dispatch for supplementary evaluators and evidence verification | Yes |
+| `supplementary/evidence/` | Anonymous paired metrics and compact R2-D2/D3 summaries | Yes |
 | `scripts/run_final_label_graph_lambdarank.py` | Thin offline CLI wrapper | `--help` only |
 | `scripts/run_synthetic_pipeline.py` | Synthetic context/candidate demonstration | Yes |
 | `online/` | Compatibility import for the frozen online reference | Import only |
 | `tests/` | Source-policy and synthetic evaluator checks | Yes |
 
-See `supplementary/README.md` for the external JSON contracts and the development-only scope of those studies.
+See `supplementary/README.md` for the external JSON contracts, anonymous
+query-level evidence, and the development scope of those studies.
 
 ## Fingerprint Archive Metadata
 
 `release_assets/fingerprint/` contains the cleaned public metadata and verification list for precomputed ERA5 background-context fingerprints supplied separately through a GitHub Release. The arrays themselves are not tracked in Git.
+
+Release: <https://github.com/BigBaooooo/CEM-WF-Index/releases/tag/rebuttal-artifact>
 
 | Metadata file | Purpose |
 | --- | --- |
@@ -96,4 +101,4 @@ separated in `supplementary/README.md`.
 1. Run `python -m pytest -q` and the compile/import checks in `README.md`.
 2. For a data-dependent rerun, retain the emitted feature-name receipt, selected profile, input hashes, and per-query outputs together.
 3. Acquire the separately supplied archive from the GitHub Release, then verify the named files against `release_assets/fingerprint/SHA256SUMS` before use.
-4. Never infer paper-table lineage merely because a compatible source module, evaluator, or fingerprint manifest is present.
+4. Each supplementary result is paired with an explicit anonymous evidence table and a public verification command.

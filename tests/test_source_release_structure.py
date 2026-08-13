@@ -71,7 +71,7 @@ def test_public_text_has_no_internal_or_projection_markers():
     drive_path = re.compile(r"\b[A-Za-z]:[\\/]")
     this_file = Path(__file__).resolve()
     for path in root.rglob("*"):
-        if not path.is_file() or path.suffix.lower() not in {".py", ".md", ".json", ".txt"}:
+        if not path.is_file() or path.suffix.lower() not in {".py", ".md", ".json", ".txt", ".csv"}:
             continue
         if path.resolve() == this_file:
             continue
@@ -79,3 +79,18 @@ def test_public_text_has_no_internal_or_projection_markers():
         assert not drive_path.search(text), path
         for token in blocked:
             assert token not in text, (path, token)
+
+
+def test_published_evidence_uses_only_anonymous_query_ids():
+    import pandas as pd
+
+    root = Path(__file__).resolve().parents[1] / "supplementary" / "evidence"
+    expected_prefixes = {
+        "climatenet_portability_per_query.csv": "climate_query_",
+        "matched_scoring_per_query.csv": "matched_query_",
+        "physical_metric_per_query.csv": "physical_query_",
+    }
+    for filename, prefix in expected_prefixes.items():
+        frame = pd.read_csv(root / filename)
+        assert frame["query_id"].is_unique
+        assert frame["query_id"].str.fullmatch(rf"{prefix}\d{{3}}").all()

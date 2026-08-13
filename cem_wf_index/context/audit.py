@@ -112,7 +112,7 @@ def synthetic_audit_example() -> dict[str, Any]:
             "direct_context_score_status": "not_selected_by_validation",
         },
         candidate_generation={
-            "sources": ["event", "context"],
+            "sources": ["event", "context", "metadata"],
             "source_ranks_and_provenance_retained": True,
             "fused_candidate_count": 24,
         },

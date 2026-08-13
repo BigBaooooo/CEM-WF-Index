@@ -46,13 +46,16 @@ The release boundary and external-input contract are explicit and auditable.
 
 The final-release ranker receives an already generated candidate pool and performs duplicate-free anchor/proposal merging; it is not the implementation point for upstream temporal non-maximum suppression. `cem_wf_index/context/temporal.py` provides `early_temporal_nms`, `deduplicate_events`, and `unique_event_ratio` at the candidate stage.
 
-The synthetic workflow reports pre/post counts, suppression ratio, unique-event ratio, and an event-distinct top-K under the same public schema.
+The synthetic workflow reports pre/post counts, suppression ratio, unique-event ratio, and an event-distinct top-K under the same public schema. `supplementary/evidence/candidate_diversity_summary.csv` records the reported Event+Context candidate-pool measurements for both tasks.
 
 ### R2-D3 — Audit outputs
 
 - The offline runner emits the feature-name receipt, train-graph manifest, search ledger, selected summary, ranking details, progress state, event log, and policy flags.
 - `cem_wf_index/context/audit.py` records the selected profile, source ranks/provenance, context stage, candidate exclusions, early T-NMS/deduplication, frozen train-graph provenance, and leakage checks.
 The audit schema, writer, and a fully synthetic inspectable example are public.
+`supplementary/evidence/audit_export_summary.json` records the measured
+completeness, score-consistency, leakage-check, serialization-overhead, and
+payload-size summary.
 
 ## Reviewer 3
 

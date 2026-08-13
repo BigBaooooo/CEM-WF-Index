@@ -1,0 +1,9 @@
+{
+  "study": "Task-conditioned physical-state metric ablation",
+  "scope": "chronological development ablation",
+  "metric": "nDCG@10 and top-1 Track RMSE",
+  "query_count": 154,
+  "temporal_fold_count": 3,
+  "bootstrap_resamples": 10000,
+  "bootstrap_seed": 29310
+}

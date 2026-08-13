@@ -1,8 +1,7 @@
 # Focused supplementary development results added in response to reviewer questions; separate from the manuscript's main test tables
 
-These focused development controls address reviewer questions while remaining
-separate from the manuscript's main held-out test tables.  They do not replace
-or restate the paper's principal results.
+These focused development controls address reviewer questions and complement
+the manuscript's main held-out test tables.
 
 | Study | Development queries | Metric | Control | CEM setting | Paired gain |
 |---|---:|---|---:|---:|---:|
@@ -28,11 +27,28 @@ three temporal folds, and reduces top-1 Track RMSE by 469 km.  This ablation
 tests the contribution of task-conditioned physical evidence within the
 shared retrieval workflow.
 
+## Reproduce the reported summaries
+
+The anonymous query-level evidence in `supplementary/evidence/` contains only
+the derived metric pairs needed to reproduce the table above and the physical
+metric ablation. It contains no event identifiers, raw annotations, candidate
+tables, or model files. Run:
+
+```bash
+python -m cem_wf_index.supplementary.run_evaluation published-evidence \
+  --input supplementary/evidence --output supplementary_summary.json
+```
+
+The evidence metadata fixes the paired-bootstrap resampling count and seed for
+each study. The same command also reports the Event+Context diversity/T-NMS
+measurements and the compact audit-export completeness/overhead summary.
+
 ## Evaluation Code
 
-The public evaluators aggregate externally supplied query-level development
-records.  No raw annotations, event identifiers, candidate tables, model
-files, or result bundles are stored in this repository.
+The public evaluators aggregate query-level development records. The included
+anonymous evidence retains only the paired derived metrics needed to verify
+the reported summaries; raw annotations, event identifiers, candidate tables,
+and model files remain under their source-specific data contracts.
 
 Run any evaluator from the repository root:
 

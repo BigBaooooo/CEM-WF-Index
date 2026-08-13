@@ -70,12 +70,27 @@ def run(*, backend: str = "exact") -> dict[str, Any]:
                         "score_calibrated": 1.0 / (rank + 2),
                     }
                 )
+            metadata_candidates = [
+                {
+                    **events[2],
+                    "rank": 1,
+                    "distance": 0.25,
+                    "provenance": "synthetic_metadata_channel",
+                },
+                {
+                    **events[3],
+                    "rank": 2,
+                    "distance": 0.50,
+                    "provenance": "synthetic_metadata_channel",
+                },
+            ]
             index = ContextIndex(backend=backend)
             result = run_retrieval_pipeline(
                 archive=archive,
                 query_event=query,
                 archive_events=[query, *events],
                 event_candidates=event_candidates,
+                metadata_candidates=metadata_candidates,
                 anchor_top20_rows=event_candidates,
                 frozen_lambdarank_model=SyntheticFrozenModel(),
                 feature_columns=["score_context_rank_prior"],
