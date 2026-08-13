@@ -42,7 +42,11 @@ def evaluate_matched_scoring(
     resamples: int = 10_000,
     seed: int = 20262202,
 ) -> dict[str, Any]:
-    """Compare candidate pools while holding their downstream scorer fixed."""
+    """Compare candidate pools while holding their downstream score map fixed.
+
+    This is a candidate-support control.  It does not retrain either backend
+    and does not identify the full-pool arm with the complete paper pipeline.
+    """
 
     if payload.get("study_scope") != "development":
         raise ValueError("this evaluator accepts development controls only")

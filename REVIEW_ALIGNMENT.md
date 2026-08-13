@@ -82,6 +82,8 @@ Task-conditioned physical evidence can now be isolated with a public chronologic
 - It reports paired query-level differences and uncertainty from caller-supplied development records.
 
 The evaluator holds downstream scoring fixed while comparing candidate support, directly isolating the multi-channel pool under the declared development protocol.
+The full-pool arm denotes the M=1,000 CEM multi-channel candidate pool under
+the shared score map; it is not relabeled as the complete paper pipeline.
 
 ## Public evidence organization
 

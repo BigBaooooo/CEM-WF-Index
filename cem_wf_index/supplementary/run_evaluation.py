@@ -25,7 +25,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--resamples", type=int, default=10_000)
     parser.add_argument("--seed", type=int, default=20262202)
     parser.add_argument("--backend", default="acorn", help="Backend key for matched-scoring")
-    parser.add_argument("--full-system", default="cem", help="Full-system key for matched-scoring")
+    parser.add_argument("--full-system", default="cem", help="Full CEM candidate-pool key for matched-scoring")
     return parser
 
 

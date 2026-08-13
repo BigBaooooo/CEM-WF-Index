@@ -4,7 +4,7 @@ These focused development controls address reviewer questions while remaining
 separate from the manuscript's main held-out test tables.  They do not replace
 or restate the paper's principal results.
 
-| Study | Development queries | Metric | Control | CEM-WF-Index | Paired gain |
+| Study | Development queries | Metric | Control | CEM setting | Paired gain |
 |---|---:|---|---:|---:|---:|
 | ClimateNet atmospheric-river portability (492 objects) | 86 | continuous nDCG@10 | 0.575 | 0.663 | +0.088, 95% CI [0.068, 0.109] |
 | Matched downstream scoring, strongest backend control (ACORN) | 62 | nDCG@10 | 0.397 | 0.498 | +0.101, 95% CI [0.054, 0.149] |
@@ -15,8 +15,9 @@ expert atmospheric-river objects to test portability through the shared
 event-retrieval interface; the independent evaluation masks are not used as
 model inputs, and the formal test remains unopened.
 
-In the matched-scoring control, the same previously sealed scorer is applied
-to the ACORN shortlist and the full CEM-WF-Index candidate pool.  The average
+In the matched-scoring control, the same previously sealed downstream scorer
+is applied to the ACORN shortlist and the full M=1,000 CEM multi-channel
+candidate pool.  The average
 number of relevant events in the top 20 rises from 4.42 to 7.97, showing that
 the broader relevant-event support from multi-channel candidate generation
 remains beneficial when downstream supervision is held fixed.
