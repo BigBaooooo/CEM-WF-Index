@@ -7,7 +7,8 @@ train-label graph and trained the LightGBM LambdaRank model.
 Policy boundary:
 - train-split CMA GT labels are used only by the offline graph/model.
 - online/test ranking must not read CMA numeric track/intensity/landfall fields.
-- the new CMA-STI-compatible fingerprint is not trained or consumed here.
+- precomputed ERA5 background-context fingerprints enter through the upstream
+  candidate rows; this downstream reference does not train that representation.
 """
 
 from __future__ import annotations
@@ -158,8 +159,10 @@ def rank_v8_22_online(
             row["uses_cma_gt_labels_for_training"] = True
             row["uses_cma_numeric_at_inference"] = False
             row["uses_test_for_tuning"] = False
-            row["trains_new_fingerprint"] = False
-            row["context_only_claim_status"] = "pending_not_used_by_full_context_weight_0"
+            row["fingerprint_input_scope"] = "upstream_precomputed_background_context"
+            row["context_candidate_path"] = "upstream"
+            row["context_rank_prior_available"] = "score_context_rank_prior" in frame.columns
+            row["direct_context_score_status"] = "not_selected_by_validation"
             rows.append(row)
         ranked_pieces.append(pd.DataFrame(rows))
     return pd.concat(ranked_pieces, ignore_index=True)

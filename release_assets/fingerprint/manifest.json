@@ -1,0 +1,29 @@
+{
+  "schema": "cem-wf-context-fingerprint-archive",
+  "description": "Precomputed ERA5 background-context fingerprints for overlapping 24-hour windows.",
+  "shape": [368161, 1024],
+  "dtype": "float32",
+  "time_unit": "UTC hour",
+  "coverage": {
+    "first_start": "1979-01-01T00",
+    "first_end": "1979-01-01T23",
+    "last_start": "2020-12-31T00",
+    "last_end": "2020-12-31T23"
+  },
+  "window_hours": 24,
+  "stride_hours": 1,
+  "variable_order": ["t2m", "msl", "u10", "v10"],
+  "column_ranges": {
+    "t2m": [0, 256],
+    "msl": [256, 512],
+    "u10": [512, 768],
+    "v10": [768, 1024]
+  },
+  "normalization": "Each 256-dimensional variable block is L2-normalized.",
+  "validation": {
+    "all_values_finite": true,
+    "timestamps_aligned": true,
+    "block_l2_norms_validated": true
+  },
+  "files": ["all_fp1024.npy", "start_times.npy", "end_times.npy"]
+}

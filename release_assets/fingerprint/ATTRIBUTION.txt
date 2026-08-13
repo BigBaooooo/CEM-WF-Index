@@ -1,0 +1,8 @@
+This archive contains modified Copernicus Climate Change Service information (2026).
+
+The precomputed vectors are derived from ERA5 fields. Neither the European
+Commission nor ECMWF is responsible for any use that may be made of the
+Copernicus information or data contained in this archive.
+
+Copernicus licence:
+https://cds.climate.copernicus.eu/licences/licence-to-use-copernicus-products

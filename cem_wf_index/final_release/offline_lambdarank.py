@@ -133,7 +133,10 @@ def _feature_columns(frame: pd.DataFrame) -> list[str]:
         "tiebreaker_profile",
         "tail_profile",
         "method_definition",
-        "context_only_claim_status",
+        "fingerprint_input_scope",
+        "context_candidate_path",
+        "context_rank_prior_available",
+        "direct_context_score_status",
         "pool_source",
         "v7_4_merge_source",
     }
@@ -176,7 +179,10 @@ def _rank_with_score(frame: pd.DataFrame, score: np.ndarray, profile: str) -> pd
         g["uses_cma_gt_labels_for_training"] = True
         g["uses_cma_numeric_at_inference"] = False
         g["uses_test_for_tuning"] = False
-        g["trains_new_fingerprint"] = False
+        g["fingerprint_input_scope"] = "upstream_precomputed_background_context"
+        g["context_candidate_path"] = "upstream"
+        g["context_rank_prior_available"] = "score_context_rank_prior" in g.columns
+        g["direct_context_score_status"] = "not_selected_by_validation"
         pieces.append(g)
     return pd.concat(pieces, ignore_index=True)
 
@@ -352,7 +358,10 @@ def main() -> None:
                     "uses_cma_gt_labels_for_training": True,
                     "uses_cma_numeric_at_inference": False,
                     "uses_test_for_tuning": False,
-                    "trains_new_fingerprint": False,
+                    "fingerprint_input_scope": "upstream_precomputed_background_context",
+                    "context_candidate_path": "upstream",
+                    "context_rank_prior_available": "score_context_rank_prior" in val_f.columns,
+                    "direct_context_score_status": "not_selected_by_validation",
                     "method_definition": METHOD_DEFINITION,
                 }
                 rows.append(row)
@@ -446,8 +455,10 @@ def main() -> None:
         "uses_cma_gt_labels_for_training": True,
         "uses_cma_numeric_at_inference": False,
         "uses_test_for_tuning": False,
-        "trains_new_fingerprint": False,
-        "context_only_claim_status": "pending_not_used_by_full_context_weight_0",
+        "fingerprint_input_scope": "upstream_precomputed_background_context",
+        "context_candidate_path": "upstream",
+        "context_rank_prior_available": "score_context_rank_prior" in test_f.columns,
+        "direct_context_score_status": "not_selected_by_validation",
         "created_at": datetime.now().isoformat(timespec="seconds"),
     }
     pd.DataFrame([summary]).to_csv(details_dir / "typhoon_v8_22_lambdarank_selected_summary.csv", index=False)
