@@ -14,11 +14,14 @@ def test_online_reference_policy_flags():
     import pandas as pd
 
     from online.final_online_inference_reference import METHOD_DEFINITION, SELECTED_PROFILE, rank_v8_22_online
+    from cem_wf_index.final_release.feature_contract import FROZEN_FEATURE_NAMES
 
     assert METHOD_DEFINITION == "v8_22_label_graph_lambdarank"
     assert "anchor_keep5" in SELECTED_PROFILE
 
     class _ZeroModel:
+        audit_sha256 = "synthetic-zero-model-sha256"
+
         @staticmethod
         def predict(values):
             return np.zeros(len(values), dtype=np.float32)
@@ -33,20 +36,24 @@ def test_online_reference_policy_flags():
             "score_context_rank_prior": np.linspace(1.0, 0.1, 20),
         }
     )
+    for feature in FROZEN_FEATURE_NAMES:
+        if feature not in candidates:
+            candidates[feature] = 0.0
     anchor = candidates[["query_id", "candidate_id"]].copy()
     anchor["rank"] = np.arange(1, 21)
     ranked = rank_v8_22_online(
         candidates,
         anchor,
         _ZeroModel(),
-        ["score_final"],
-        pd.Series({"score_final": 0.0}),
+        list(FROZEN_FEATURE_NAMES),
+        pd.Series(0.0, index=list(FROZEN_FEATURE_NAMES)),
         {},
         {},
     )
     assert ranked["context_candidate_path"].eq("upstream").all()
     assert ranked["context_rank_prior_available"].all()
-    assert ranked["direct_context_score_status"].eq("not_selected_by_validation").all()
+    assert ranked["context_rank_prior_consumed_by_lambdarank"].all()
+    assert ~ranked["standalone_direct_context_term_selected"].all()
     assert "context_only_claim_status" not in ranked.columns
 
 

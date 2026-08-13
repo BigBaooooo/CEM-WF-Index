@@ -9,17 +9,19 @@ This document maps reviewer items to public source and documentation. It states 
 - `SOURCE_GUIDE.md` maps full-candidate calibration, train-label graph propagation, frozen online scoring, anchor merging, metrics, and evaluation to their implementing modules.
 - `offline_lambdarank.py` implements train-only fitting, validation-only profile selection, profile freezing, and report-only test scoring.
 - `online_inference.py` exposes the frozen blend and anchor configuration.
+- `typhoon_frozen_feature_names.csv` publishes the exact ordered 31-feature model input. Offline and online code enforce it before fitting or prediction, while `feature_contract.py` rejects missing, reordered, or evaluation-only inputs.
 
-The released ranking stages and configuration can therefore be traced directly to code.
+The manuscript-level ranking stages, frozen inputs, blend, graph path, and anchor rule can therefore be traced directly to executable code.
 
 ### R2-W2 — Context-channel boundary
 
 - The final ranker consumes candidate rows prepared by an upstream retrieval pipeline; it does not train a fingerprint archive.
-- `cem_wf_index/context/fingerprints.py` and `index.py` define the `FingerprintArchive` to `ContextIndex` path; `candidates.py` emits context rank, source provenance, and `score_context_rank_prior` before frozen final scoring.
+- `cem_wf_index/context/fingerprints.py` and `index.py` define the `FingerprintArchive` to `ContextIndex` path; `candidates.py` emits context rank, source provenance, and `score_context_rank_prior`.
+- The frozen feature contract includes `score_context_rank_prior`, so the audit records both context use in candidate generation and actual LambdaRank consumption. Validation did not select an additional standalone direct-context term.
 - `release_assets/fingerprint/manifest.json` and `SHA256SUMS` specify the separately supplied, precomputed ERA5 background-context fingerprints without storing the arrays in Git.
 - The frozen blend's `c` term is the calibrated score, not a context weight; its explicit source-min-rank term has weight zero.
 
-This makes context an explicit upstream candidate-evidence channel while preserving the frozen downstream scorer.
+This makes the context path and its learned-ranker boundary directly inspectable without changing the frozen downstream scorer.
 
 ### R2-W3 — Experimental protocol and configuration
 
@@ -50,9 +52,10 @@ The synthetic workflow reports pre/post counts, suppression ratio, unique-event 
 
 ### R2-D3 — Audit outputs
 
-- The offline runner emits the feature-name receipt, train-graph manifest, search ledger, selected summary, ranking details, progress state, event log, and policy flags.
-- `cem_wf_index/context/audit.py` records the selected profile, source ranks/provenance, context stage, candidate exclusions, early T-NMS/deduplication, frozen train-graph provenance, and leakage checks.
-The audit schema, writer, and a fully synthetic inspectable example are public.
+- The offline runner emits the enforced feature order, model/feature/graph hashes, train-graph manifest, search ledger, selected summary, ranking details, progress state, and event log.
+- `feature_contract.py` checks the actual matrix inputs and fails before inference on missing, reordered, unregistered, CMA, GT, or evaluation-only feature requests.
+- `cem_wf_index/context/audit.py` records the selected profile, source ranks/provenance, Context stage, four separate exclusion/suppression/deduplication stages, frozen train-graph provenance, and the executable leakage receipt.
+The audit schema, validator, hashes, and a fully synthetic inspectable example are public.
 `supplementary/evidence/audit_export_summary.json` records the measured
 completeness, score-consistency, leakage-check, serialization-overhead, and
 payload-size summary.

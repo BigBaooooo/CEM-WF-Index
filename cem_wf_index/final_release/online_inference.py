@@ -19,6 +19,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from cem_wf_index.final_release.feature_contract import input_audit_receipt
+
 
 METHOD_DEFINITION = "v8_22_label_graph_lambdarank"
 METHOD_NAME = "CEM-WF-Index v8.22 Label-Graph LambdaRank"
@@ -124,6 +126,13 @@ def rank_v8_22_online(
 ) -> pd.DataFrame:
     """Return V8.22 top20 analogues with provenance flags."""
     frame = add_v8_22_online_features(candidate_rows, seed_to_train_queries, train_query_to_positive_candidates)
+    feature_audit = input_audit_receipt(
+        frame,
+        feature_columns,
+        model=frozen_lambdarank_model,
+        seed_to_train_queries=seed_to_train_queries,
+        train_query_to_positive_candidates=train_query_to_positive_candidates,
+    )
     x = frame[feature_columns].apply(pd.to_numeric, errors="coerce").fillna(feature_fill_values).to_numpy(np.float32)
     model_score = query_z(frame, np.asarray(frozen_lambdarank_model.predict(x), dtype=float))
     blend_score = (
@@ -162,7 +171,16 @@ def rank_v8_22_online(
             row["fingerprint_input_scope"] = "upstream_precomputed_background_context"
             row["context_candidate_path"] = "upstream"
             row["context_rank_prior_available"] = "score_context_rank_prior" in frame.columns
-            row["direct_context_score_status"] = "not_selected_by_validation"
+            row["context_used_for_candidate_generation"] = True
+            row["context_rank_prior_consumed_by_lambdarank"] = feature_audit[
+                "context_rank_prior_consumed_by_lambdarank"
+            ]
+            row["standalone_direct_context_term_selected"] = False
+            row["feature_list_sha256"] = feature_audit["feature_list_sha256"]
+            row["model_sha256"] = feature_audit.get("model_sha256")
+            row["graph_asset_sha256"] = feature_audit["graph_asset_sha256"]
             rows.append(row)
         ranked_pieces.append(pd.DataFrame(rows))
-    return pd.concat(ranked_pieces, ignore_index=True)
+    result = pd.concat(ranked_pieces, ignore_index=True)
+    result.attrs["feature_audit"] = feature_audit
+    return result

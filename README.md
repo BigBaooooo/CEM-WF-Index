@@ -133,9 +133,9 @@ Core row fields are:
 | `source_event_rank`, `source_sequence_rank`, `source_min_rank`, `source_rank_gap` | upstream rank-level candidate evidence |
 | `rank` | retained-ranking order when used as an anchor input |
 
-At fit time, numeric columns are selected after an explicit exclusion list removes identifiers, labels, split metadata, method/profile fields, and `uses_*` policy fields. Because additional numeric columns can otherwise enter the model, a reproducer must audit the emitted `typhoon_v8_22_feature_names.csv` receipt and ensure every selected feature is inference-available. The source-rank pool name is a configured upper-bound label, not a guarantee that every query has that many rows.
+Training and online inference both enforce the same ordered 31-feature contract in `cem_wf_index/final_release/typhoon_frozen_feature_names.csv`. Missing, reordered, or unregistered model inputs fail before fitting or prediction. Labels and evaluation fields may remain in prepared offline tables, but they are never selected into the model matrix; other numeric diagnostics are reported and ignored. Each run emits hashes for the feature list, fitted LightGBM model, and frozen train-label graph. The source-rank pool name is a configured upper-bound label, not a guarantee that every query has that many rows.
 
-The upstream context/fingerprint stage is outside the final ranker's fit function. Candidate tables carry context-derived membership and rank-prior evidence when that upstream path is active; the final ranker does not train the precomputed fingerprint archive. CMA numeric track, intensity, and landfall fields are evaluation-only and are not online ranking inputs.
+The upstream context/fingerprint stage is outside the final ranker's fit function. Candidate tables carry context-derived membership and rank-prior evidence; `score_context_rank_prior` is one of the frozen LambdaRank inputs. Validation did not select an additional standalone direct-context term in the final linear blend. The final ranker does not train the precomputed fingerprint archive. CMA numeric track, intensity, and landfall fields are evaluation-only and are not online ranking inputs.
 
 ## Offline Use With Prepared Inputs
 
@@ -167,7 +167,7 @@ The public online function is `rank_v8_22_online`:
 from cem_wf_index.final_release.online_inference import rank_v8_22_online
 ```
 
-It accepts candidate rows, retained top-20 anchor rows, a frozen fitted model, the frozen feature order and fill values, and the two frozen train-label graph mappings. It returns at most 20 rows per query. The online call does not fit a model, read CMA numeric fields, or select a profile.
+It accepts candidate rows, retained top-20 anchor rows, a frozen fitted model, the frozen feature order and fill values, and the two frozen train-label graph mappings. The supplied feature order must match the published contract exactly. It returns at most 20 rows per query and attaches the executable input-audit receipt to the returned frame. The online call does not fit a model, read CMA numeric fields, or select a profile.
 
 ## Scope and Claims
 

@@ -155,6 +155,7 @@ def run_retrieval_pipeline(
         seed_to_train_queries,
         train_query_to_positive_candidates,
     )
+    feature_audit = dict(ranked.attrs["feature_audit"])
     ranked_rows = ranked.sort_values("rank", kind="mergesort").to_dict("records")
     distinct_rows, removed = deduplicate_events(ranked_rows, event_key="event_id", top_k=top_k)
     top = pd.DataFrame(distinct_rows)
@@ -169,7 +170,11 @@ def run_retrieval_pipeline(
             "candidate_path": "upstream",
             "retrieved_count": len(context_rows),
             "rank_prior_retained": "score_context_rank_prior" in reranker_input.columns,
-            "direct_context_score_status": "not_selected_by_validation",
+            "context_used_for_candidate_generation": True,
+            "context_rank_prior_consumed_by_lambdarank": feature_audit[
+                "context_rank_prior_consumed_by_lambdarank"
+            ],
+            "standalone_direct_context_term_selected": False,
         },
         candidate_generation={
             "sources": list(candidate_channels),
@@ -177,21 +182,27 @@ def run_retrieval_pipeline(
             "reranker_candidate_count": len(reranker_input),
             "source_ranks_and_provenance_retained": True,
         },
-        temporal_suppression={"stage": "before_expensive_reranking", **nms.diagnostics()},
+        temporal_suppression={
+            "stage": "temporal_overlap_suppression_before_reranking",
+            **nms.diagnostics(),
+        },
         exclusions_and_deduplication={
-            "query_event_excluded": query_id not in reranker_input["candidate_id"].astype(str).tolist(),
-            "same_group_excluded": query_group is None
-            or all(str(value) != str(query_group) for value in reranker_input.get("group_id", [])),
-            "excluded_candidate_ids": excluded_ids,
-            "removed_before_reranking": pre_rank_duplicates,
-            "final_event_deduplication": True,
-            "removed_after_reranking": removed,
+            "query_and_same_group_exclusion": {
+                "query_event_excluded": query_id not in reranker_input["candidate_id"].astype(str).tolist(),
+                "same_group_excluded": query_group is None
+                or all(str(value) != str(query_group) for value in reranker_input.get("group_id", [])),
+                "excluded_candidate_ids": excluded_ids,
+            },
+            "pre_reranking_same_event_deduplication": {
+                "removed_candidate_ids": pre_rank_duplicates,
+            },
+            "post_ranking_event_deduplication": {
+                "applied": True,
+                "removed_candidate_ids": removed,
+            },
         },
         graph_provenance={"asset_scope": "training_split_only", "frozen_before_test": True},
-        leakage_check={
-            "uses_validation_or_test_labels_at_inference": False,
-            "uses_cma_numeric_at_inference": False,
-        },
+        leakage_check=feature_audit,
         output={
             "requested_top_k": top_k,
             "returned_count": len(top),

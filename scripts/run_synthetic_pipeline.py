@@ -12,14 +12,18 @@ import numpy as np
 import pandas as pd
 
 from cem_wf_index.context import ContextIndex, FingerprintArchive, run_retrieval_pipeline
+from cem_wf_index.final_release.feature_contract import FROZEN_FEATURE_NAMES, feature_list_sha256
 
 
 class SyntheticFrozenModel:
     """Small deterministic stand-in for an already-frozen scorer."""
 
+    audit_sha256 = "synthetic-frozen-model-sha256"
+
     def predict(self, matrix: np.ndarray) -> np.ndarray:
         values = np.asarray(matrix, dtype=np.float32)
-        return values[:, 0] if values.shape[1] else np.zeros(len(values), dtype=np.float32)
+        context_position = list(FROZEN_FEATURE_NAMES).index("score_context_rank_prior")
+        return values[:, context_position] if values.shape[1] else np.zeros(len(values), dtype=np.float32)
 
 
 def _event(event_id: str, group_id: str, start_hour: int, vector_row: int) -> dict[str, Any]:
@@ -93,8 +97,8 @@ def run(*, backend: str = "exact") -> dict[str, Any]:
                 metadata_candidates=metadata_candidates,
                 anchor_top20_rows=event_candidates,
                 frozen_lambdarank_model=SyntheticFrozenModel(),
-                feature_columns=["score_context_rank_prior"],
-                feature_fill_values=pd.Series({"score_context_rank_prior": 0.0}),
+                feature_columns=list(FROZEN_FEATURE_NAMES),
+                feature_fill_values=pd.Series(0.0, index=list(FROZEN_FEATURE_NAMES)),
                 seed_to_train_queries={},
                 train_query_to_positive_candidates={},
                 candidate_limit=5,
@@ -107,6 +111,7 @@ def run(*, backend: str = "exact") -> dict[str, Any]:
                     ["rank", "candidate_id", "source_membership", "score_context_rank_prior"]
                 ].to_dict("records"),
                 "audit": result.audit,
+                "feature_list_sha256": feature_list_sha256(),
             }
         finally:
             archive.close()
