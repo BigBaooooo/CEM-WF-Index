@@ -1,0 +1,27 @@
+{
+  "schema_version": "cem_wf_frozen_assets_v1",
+  "feature_contract": {
+    "feature_count": 31,
+    "feature_list_sha256": "73ea3cf18b18d38c368d6d305166f57d0a8ecad09e742b15922cf3b2f16b6bac",
+    "context_rank_feature": "score_context_rank_prior"
+  },
+  "model": {
+    "sha256": "7e8485f6e48eb18d02adabf66479d2e4ede97510e01a5963af6b916f0835000b",
+    "input_dimension": 31,
+    "context_rank_prior_split_count": 1389,
+    "context_rank_prior_gain": 1327.8582847118378
+  },
+  "train_label_graph": {
+    "sha256": "e1cb39f788c6e32ab06a5297e8d5732349a3fe3fc8bf4cd3ec230df9342e2581",
+    "source_split": "train",
+    "frozen_before_test": true,
+    "train_positive_query_count": 1035,
+    "train_positive_seed_count": 1151
+  },
+  "software": {
+    "python": "3.10.20",
+    "lightgbm": "4.6.0",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3"
+  }
+}

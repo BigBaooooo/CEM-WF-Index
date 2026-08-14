@@ -81,6 +81,10 @@ class TemporalNMSResult:
     reduction_ratio: float
     unique_event_ratio: float
     suppressed_candidate_ids: tuple[str, ...]
+    overlap_suppressed_candidate_ids: tuple[str, ...]
+    start_proximity_suppressed_candidate_ids: tuple[str, ...]
+    overlap_threshold: float
+    start_time_delta_hours: float | None
 
     def diagnostics(self) -> dict[str, Any]:
         return {
@@ -89,6 +93,12 @@ class TemporalNMSResult:
             "tnms_reduction_ratio": self.reduction_ratio,
             "unique_event_ratio": self.unique_event_ratio,
             "suppressed_candidate_ids": list(self.suppressed_candidate_ids),
+            "overlap_suppressed_candidate_ids": list(self.overlap_suppressed_candidate_ids),
+            "start_proximity_suppressed_candidate_ids": list(
+                self.start_proximity_suppressed_candidate_ids
+            ),
+            "overlap_threshold": self.overlap_threshold,
+            "start_time_delta_hours": self.start_time_delta_hours,
         }
 
 
@@ -96,11 +106,12 @@ def early_temporal_nms(
     candidates: Sequence[Mapping[str, Any]],
     *,
     overlap_threshold: float = 0.5,
+    start_time_delta_hours: float | None,
     rank_key: str = "pool_rank",
     event_key: str = "event_id",
     scope_key: str | None = "event_type",
 ) -> TemporalNMSResult:
-    """Suppress redundant high-overlap windows before expensive reranking.
+    """Suppress windows conflicting by overlap or nearby start time.
 
     Input rank is ascending and stable. Suppression is applied only within the
     same optional scope (normally event type), while event identity itself is
@@ -109,6 +120,8 @@ def early_temporal_nms(
 
     if not 0.0 <= overlap_threshold <= 1.0:
         raise ValueError("overlap_threshold must be in [0, 1]")
+    if start_time_delta_hours is not None and start_time_delta_hours < 0.0:
+        raise ValueError("start_time_delta_hours must be non-negative or None")
     rows = [dict(row) for row in candidates]
     ordered = sorted(
         enumerate(rows),
@@ -119,17 +132,34 @@ def early_temporal_nms(
     )
     kept: list[dict[str, Any]] = []
     suppressed: list[str] = []
+    overlap_suppressed: list[str] = []
+    start_suppressed: list[str] = []
     for _, candidate in ordered:
         candidate_scope = candidate.get(scope_key) if scope_key else None
         conflicts = False
+        overlap_conflict = False
+        start_conflict = False
         for existing in kept:
             if scope_key and existing.get(scope_key) != candidate_scope:
                 continue
-            if temporal_overlap(candidate, existing)["overlap_ratio_min"] > overlap_threshold:
+            overlap_conflict = (
+                temporal_overlap(candidate, existing)["overlap_ratio_min"] >= overlap_threshold
+            )
+            if start_time_delta_hours is not None:
+                candidate_start, _ = _time_bounds(candidate)
+                existing_start, _ = _time_bounds(existing)
+                start_delta = abs((candidate_start - existing_start).total_seconds()) / 3600.0
+                start_conflict = start_delta <= start_time_delta_hours
+            if overlap_conflict or start_conflict:
                 conflicts = True
                 break
         if conflicts:
-            suppressed.append(str(candidate.get("candidate_id", "")))
+            candidate_id = str(candidate.get("candidate_id", ""))
+            suppressed.append(candidate_id)
+            if overlap_conflict:
+                overlap_suppressed.append(candidate_id)
+            if start_conflict:
+                start_suppressed.append(candidate_id)
         else:
             kept.append(candidate)
     pre_count = len(rows)
@@ -141,6 +171,12 @@ def early_temporal_nms(
         reduction_ratio=0.0 if pre_count == 0 else (pre_count - post_count) / float(pre_count),
         unique_event_ratio=unique_event_ratio(kept, event_key=event_key),
         suppressed_candidate_ids=tuple(suppressed),
+        overlap_suppressed_candidate_ids=tuple(overlap_suppressed),
+        start_proximity_suppressed_candidate_ids=tuple(start_suppressed),
+        overlap_threshold=float(overlap_threshold),
+        start_time_delta_hours=None
+        if start_time_delta_hours is None
+        else float(start_time_delta_hours),
     )
 
 

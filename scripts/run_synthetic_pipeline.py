@@ -12,14 +12,25 @@ import numpy as np
 import pandas as pd
 
 from cem_wf_index.context import ContextIndex, FingerprintArchive, run_retrieval_pipeline
+from cem_wf_index.final_release.feature_contract import (
+    FROZEN_FEATURE_NAMES,
+    build_frozen_asset_manifest,
+    feature_list_sha256,
+)
 
 
 class SyntheticFrozenModel:
     """Small deterministic stand-in for an already-frozen scorer."""
 
+    audit_sha256 = "synthetic-frozen-model-sha256"
+    audit_num_feature = len(FROZEN_FEATURE_NAMES)
+    audit_context_split_count = 1
+    audit_context_gain = 1.0
+
     def predict(self, matrix: np.ndarray) -> np.ndarray:
         values = np.asarray(matrix, dtype=np.float32)
-        return values[:, 0] if values.shape[1] else np.zeros(len(values), dtype=np.float32)
+        context_position = list(FROZEN_FEATURE_NAMES).index("score_context_rank_prior")
+        return values[:, context_position] if values.shape[1] else np.zeros(len(values), dtype=np.float32)
 
 
 def _event(event_id: str, group_id: str, start_hour: int, vector_row: int) -> dict[str, Any]:
@@ -85,6 +96,14 @@ def run(*, backend: str = "exact") -> dict[str, Any]:
                 },
             ]
             index = ContextIndex(backend=backend)
+            model = SyntheticFrozenModel()
+            seed_to_queries: dict[str, list[tuple[str, float]]] = {}
+            query_to_positive: dict[str, dict[str, float]] = {}
+            synthetic_manifest = build_frozen_asset_manifest(
+                model,
+                seed_to_queries,
+                query_to_positive,
+            )
             result = run_retrieval_pipeline(
                 archive=archive,
                 query_event=query,
@@ -92,21 +111,25 @@ def run(*, backend: str = "exact") -> dict[str, Any]:
                 event_candidates=event_candidates,
                 metadata_candidates=metadata_candidates,
                 anchor_top20_rows=event_candidates,
-                frozen_lambdarank_model=SyntheticFrozenModel(),
-                feature_columns=["score_context_rank_prior"],
-                feature_fill_values=pd.Series({"score_context_rank_prior": 0.0}),
-                seed_to_train_queries={},
-                train_query_to_positive_candidates={},
+                frozen_lambdarank_model=model,
+                feature_columns=list(FROZEN_FEATURE_NAMES),
+                feature_fill_values=pd.Series(0.0, index=list(FROZEN_FEATURE_NAMES)),
+                seed_to_train_queries=seed_to_queries,
+                train_query_to_positive_candidates=query_to_positive,
                 candidate_limit=5,
                 top_k=3,
                 cadence="6h",
                 context_index=index,
+                overlap_threshold=0.5,
+                start_time_delta_hours=12.0,
+                frozen_asset_manifest=synthetic_manifest,
             )
             return {
                 "top_k": result.top_k[
                     ["rank", "candidate_id", "source_membership", "score_context_rank_prior"]
                 ].to_dict("records"),
                 "audit": result.audit,
+                "feature_list_sha256": feature_list_sha256(),
             }
         finally:
             archive.close()

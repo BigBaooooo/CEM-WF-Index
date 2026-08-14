@@ -21,7 +21,11 @@ env/
 /progress/
 /artifacts/
 /artifacts_secondary/
+/synthetic_summary.json
+/supplementary_summary.json
 *.csv
+!cem_wf_index/final_release/typhoon_frozen_feature_names.csv
+!supplementary/evidence/*.csv
 *.tsv
 *.xlsx
 *.nc

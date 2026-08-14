@@ -104,11 +104,23 @@ def fuse_candidate_channels(
         ranks = entry["source_ranks"]
         context_rank = ranks.get(context_channel)
         entry["pool_rank"] = pool_rank
+        entry["rank"] = pool_rank
+        entry["rank_inv"] = 1.0 / float(pool_rank + 1)
         entry["source_min_rank"] = min(ranks.values())
         all_source_ranks = [int(ranks.get(name, missing_rank)) for name in ordered_channels]
         entry["source_rank_gap"] = max(all_source_ranks) - min(all_source_ranks)
         for name in ordered_channels:
             entry[f"source_{name}_rank"] = int(ranks.get(name, missing_rank))
+        # The frozen typhoon ranker retains event and sequence ranks. A channel
+        # absent from a particular public candidate composition receives the
+        # same deterministic missing-rank sentinel used by the upstream union.
+        for name in ("event", "sequence"):
+            entry.setdefault(f"source_{name}_rank", missing_rank)
+        entry["source_event_rank_inv"] = 1.0 / float(entry["source_event_rank"] + 1)
+        entry["source_sequence_rank_inv"] = 1.0 / float(entry["source_sequence_rank"] + 1)
+        entry["source_min_rank_inv"] = 1.0 / float(entry["source_min_rank"] + 1)
+        entry["score_event_rank_prior"] = entry["source_event_rank_inv"]
+        entry["score_pool_rank_prior"] = entry["rank_inv"]
         entry["context_candidate"] = context_rank is not None
         entry["context_rank"] = int(context_rank) if context_rank is not None else None
         entry["score_context_rank_prior"] = 1.0 / float(
@@ -116,5 +128,6 @@ def fuse_candidate_channels(
         )
         entry["context_candidate_path"] = "upstream"
         entry["context_rank_prior_available"] = context_rank is not None
-        entry["direct_context_score_status"] = "not_selected_by_validation"
+        entry["context_used_for_candidate_generation"] = True
+        entry["standalone_direct_context_term_selected"] = False
     return fused

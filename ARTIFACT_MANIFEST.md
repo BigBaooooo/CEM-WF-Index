@@ -9,6 +9,7 @@ caller-supplied inputs activate each data-dependent stage.
 | --- | --- | --- |
 | `cem_wf_index/final_release/offline_lambdarank.py` | Grouped training, validation-only profile selection, frozen test reporting | `--help` only |
 | `cem_wf_index/final_release/online_inference.py` | Frozen online feature, graph, blend, and top-20 reference | Import only; ranking requires model and candidate inputs |
+| `cem_wf_index/final_release/feature_contract.py`, `typhoon_frozen_feature_names.csv`, and `typhoon_frozen_asset_manifest.json` | Ordered 31-feature whitelist plus hash-bound model/train-graph/Context receipt | Yes, with in-memory frames and supplied assets |
 | `cem_wf_index/final_release/graph_features.py` | Train-label graph construction and propagation | Unit-level use with supplied frames |
 | `cem_wf_index/final_release/candidate_rows.py` | Candidate/relevance normalization and anchor merge | Unit-level use with supplied frames |
 | `cem_wf_index/final_release/ranking_utils.py` | Retrieval metrics | Yes, with in-memory ranked/relevance inputs |
@@ -58,7 +59,7 @@ With all required inputs, the offline runner produces:
 - a candidate-profile search ledger and partial ledger;
 - validation and test top-20 ranking details;
 - the selected-summary CSV/JSON;
-- the exact selected feature-name CSV;
+- the enforced selected feature-name CSV and verified feature/model/graph/Context receipt;
 - a train-label-graph manifest; and
 - storage/progress/event records.
 
@@ -99,6 +100,6 @@ separated in `supplementary/README.md`.
 ## Integrity and Safe Interpretation
 
 1. Run `python -m pytest -q` and the compile/import checks in `README.md`.
-2. For a data-dependent rerun, retain the emitted feature-name receipt, selected profile, input hashes, and per-query outputs together.
+2. For a data-dependent rerun, retain the emitted feature-name receipt, selected profile, verified input hashes, Context importance, and per-query outputs together.
 3. Acquire the separately supplied archive from the GitHub Release, then verify the named files against `release_assets/fingerprint/SHA256SUMS` before use.
 4. Each supplementary result is paired with an explicit anonymous evidence table and a public verification command.

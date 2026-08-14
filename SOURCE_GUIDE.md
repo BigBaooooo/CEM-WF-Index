@@ -89,15 +89,16 @@ The frozen online profile is the graded LambdaRank model with weights `(base, mo
 
 ## Feature Selection and Receipts
 
-`_feature_columns` excludes identifiers, relevance labels, rank, split/method/profile fields, pool provenance fields, every `uses_*` field, and fields whose name contains `cma_numeric`. It then accepts remaining numeric columns. `_matrix` learns per-column median fill values from train rows and reuses them for validation and test.
+`typhoon_frozen_feature_names.csv` is the single ordered 31-feature contract used by both offline training and online inference. `typhoon_frozen_asset_manifest.json` binds its hash to the verified 31-input LightGBM model and frozen train-only graph. `feature_contract.py` validates the exact matrix order and asset hashes before prediction. `_matrix` learns per-column median fill values from train rows and reuses them for validation and test.
 
 Consequently:
 
-- the generated feature-name CSV is the authoritative feature-order receipt for a concrete run;
+- identifier, label, CMA numeric, GT-distance, and validation/test metric fields cannot become model inputs;
+- additional numeric diagnostics remain outside the model matrix and are reported by the validator;
 - the fitted model, feature order, and train medians must travel together for online use; and
-- callers must not add numeric label/evaluation fields outside the exclusion policy.
+- the run receipt records the actual feature order, feature-list hash, fitted-model hash, train-graph hash, Context split/gain importance, and audit outcome.
 
-Upstream event/sequence/context information is represented through the candidate-row fields provided to this package. The final ranker does not construct or train the precomputed fingerprint archive; the upstream context stage carries candidate provenance and a context rank prior into the row contract.
+Upstream event/sequence/context information is represented through the candidate-row fields provided to this package. The final ranker does not construct or train the precomputed fingerprint archive. Context participates in upstream candidate generation; the hash-verified frozen Booster uses `score_context_rank_prior` in 1,389 splits with gain importance 1,327.8583. No additional standalone context term was selected in the final linear blend.
 
 ## Upstream Context and Candidate Boundary
 
@@ -107,11 +108,11 @@ The public upstream reference has this one-way interface:
 precomputed background-context fingerprints
   -> ContextIndex ranked candidates
   -> event/context/metadata union + provenance + context reciprocal-rank prior
-  -> early temporal NMS and event deduplication
+  -> early temporal NMS (overlap or start-time proximity) and event deduplication
   -> candidate rows consumed by the frozen ranking stage
 ```
 
-`score_context_rank_prior` is candidate-rank evidence, not a probability or the final score. Source provenance records which candidate channels admitted an event. Early temporal NMS and event deduplication operate before the final ranker; the audit record identifies the applied exclusions and diversity steps. The synthetic pipeline exercises this contract without asserting measured effectiveness or main-table lineage.
+`score_context_rank_prior` is candidate-rank evidence rather than a probability or standalone final score. Source provenance records which candidate channels admitted an event. T-NMS suppresses a lower-priority window when the overlap ratio reaches its threshold or the absolute start-time difference is within `start_time_delta_hours`; the synthetic 24-hour example uses 12 hours. The audit separately records overlap suppression, start-proximity suppression, query/same-group exclusion, pre-reranking same-event deduplication, and post-ranking event deduplication. The synthetic pipeline exercises this contract without changing the frozen scoring rule.
 
 `ContextIndex` uses 1,024-dimensional L2 vectors with HNSW `M=32`,
 `efConstruction=200`, and `efSearch=200`; its exact fallback preserves the same
@@ -139,7 +140,7 @@ python -m scripts.run_synthetic_pipeline --help
 python -m cem_wf_index.supplementary.run_evaluation --help
 ```
 
-The offline CLI accepts `--root`, `--candidate-detail-dir`, `--retained-validation-ranking`, and `--retained-test-ranking`. It writes a search ledger, selected validation/test rankings, the actual feature-name receipt, a train-graph manifest, a selected summary, and progress records. Those are generated local artifacts and are not tracked in this source repository.
+The offline CLI accepts `--root`, `--candidate-detail-dir`, `--retained-validation-ranking`, and `--retained-test-ranking`. It writes a search ledger, selected validation/test rankings, a copy of the enforced feature order, a feature/model/graph hash receipt, a train-graph manifest, a selected summary, and progress records. Those are generated local artifacts and are not tracked in this source repository.
 
 ## Contribution Boundary
 

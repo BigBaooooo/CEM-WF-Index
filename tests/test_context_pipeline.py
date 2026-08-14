@@ -20,6 +20,11 @@ from cem_wf_index.context import (
 from scripts.run_synthetic_pipeline import run
 from scripts.run_synthetic_pipeline import SyntheticFrozenModel
 from cem_wf_index.context import run_retrieval_pipeline
+from cem_wf_index.final_release.feature_contract import FROZEN_FEATURE_NAMES, build_frozen_asset_manifest
+
+
+def _synthetic_manifest(model: SyntheticFrozenModel) -> dict:
+    return build_frozen_asset_manifest(model, {}, {})
 
 
 def _archive(tmp_path: Path, *, rows: int = 49, dimension: int = 8) -> FingerprintArchive:
@@ -117,7 +122,7 @@ def test_candidate_fusion_retains_context_evidence_without_direct_score_claim():
     assert by_id["a"]["score_context_rank_prior"] == 1 / 5
     assert by_id["a"]["source_context_rank"] == 4
     assert by_id["b"]["source_event_rank"] == 2
-    assert by_id["b"]["direct_context_score_status"] == "not_selected_by_validation"
+    assert by_id["b"]["standalone_direct_context_term_selected"] is False
     assert by_id["c"]["source_membership"] == ["context", "metadata"]
     assert by_id["c"]["source_metadata_rank"] == 1
 
@@ -139,7 +144,7 @@ def test_temporal_nms_and_hard_event_deduplication():
         _candidate("a-window-2", "a", "2020-01-02", "2020-01-04", 2),
         _candidate("b-window", "b", "2020-01-05", "2020-01-07", 3),
     ]
-    result = early_temporal_nms(rows, overlap_threshold=0.49)
+    result = early_temporal_nms(rows, overlap_threshold=0.49, start_time_delta_hours=None)
     assert [row["candidate_id"] for row in result.candidates] == ["a-window-1", "b-window"]
     assert result.reduction_ratio == pytest.approx(1 / 3)
     assert result.unique_event_ratio == 1.0
@@ -148,6 +153,93 @@ def test_temporal_nms_and_hard_event_deduplication():
     distinct, removed = deduplicate_events(rows, top_k=2)
     assert [row["candidate_id"] for row in distinct] == ["a-window-1", "b-window"]
     assert removed == ["a-window-2"]
+
+
+def test_temporal_nms_uses_inclusive_overlap_and_start_proximity_boundaries():
+    overlap_base = _candidate("overlap-base", "event-a", "2020-01-01T00", "2020-01-02T00", 1)
+    overlap_equal = _candidate("overlap-equal", "event-b", "2020-01-01T12", "2020-01-02T12", 2)
+    overlap_result = early_temporal_nms(
+        [overlap_base, overlap_equal],
+        overlap_threshold=0.5,
+        start_time_delta_hours=None,
+    )
+    assert overlap_result.overlap_suppressed_candidate_ids == ("overlap-equal",)
+
+    short_base = _candidate("start-base", "event-c", "2020-01-03T00", "2020-01-03T01", 1)
+    start_equal = _candidate("start-equal", "event-d", "2020-01-03T12", "2020-01-03T13", 2)
+    start_result = early_temporal_nms(
+        [short_base, start_equal],
+        overlap_threshold=0.5,
+        start_time_delta_hours=12.0,
+    )
+    assert start_result.start_proximity_suppressed_candidate_ids == ("start-equal",)
+    assert start_result.overlap_suppressed_candidate_ids == ()
+
+
+def test_integrated_exclusion_temporal_suppression_and_event_dedup_boundaries(tmp_path: Path):
+    archive = _archive(tmp_path, rows=289, dimension=8)
+    query = _candidate("query", "query", "2020-01-01T00", "2020-01-02T00", 1)
+    query["group_id"] = "query-group"
+    same_group = _candidate("same-group", "same-group", "2020-01-04", "2020-01-05", 1)
+    same_group["group_id"] = "query-group"
+    overlap_a = _candidate("overlap-a", "event-a", "2020-01-05", "2020-01-07", 2)
+    overlap_a["group_id"] = "group-a"
+    overlap_b = _candidate("overlap-b", "event-b", "2020-01-06", "2020-01-08", 3)
+    overlap_b["group_id"] = "group-b"
+    duplicate_low_overlap = _candidate("event-a-late", "event-a", "2020-01-10", "2020-01-11", 4)
+    duplicate_low_overlap["candidate_id"] = "event-a-late"
+    duplicate_low_overlap["event_id"] = "event-a"
+    duplicate_low_overlap["group_id"] = "group-a"
+    start_base = _candidate("start-base", "event-c", "2020-01-12T00", "2020-01-12T01", 5)
+    start_base["group_id"] = "group-c"
+    close_start_low_overlap = _candidate("close-start", "event-d", "2020-01-12T12", "2020-01-12T13", 6)
+    close_start_low_overlap["group_id"] = "group-d"
+    candidates = [
+        query,
+        same_group,
+        overlap_a,
+        overlap_b,
+        duplicate_low_overlap,
+        start_base,
+        close_start_low_overlap,
+    ]
+    try:
+        model = SyntheticFrozenModel()
+        result = run_retrieval_pipeline(
+            archive=archive,
+            query_event=query,
+            archive_events=[query, same_group, overlap_a, overlap_b, start_base, close_start_low_overlap],
+            event_candidates=candidates,
+            anchor_top20_rows=[overlap_a, start_base],
+            frozen_lambdarank_model=model,
+            feature_columns=list(FROZEN_FEATURE_NAMES),
+            feature_fill_values=pd.Series(0.0, index=list(FROZEN_FEATURE_NAMES)),
+            seed_to_train_queries={},
+            train_query_to_positive_candidates={},
+            candidate_limit=10,
+            top_k=3,
+            cadence="1h",
+            context_index=ContextIndex(dimension=8, backend="exact"),
+            overlap_threshold=0.49,
+            start_time_delta_hours=12.0,
+            frozen_asset_manifest=_synthetic_manifest(model),
+        )
+    finally:
+        archive.close()
+    audit = result.audit
+    exclusion = audit["exclusions_and_deduplication"]["query_and_same_group_exclusion"]
+    assert set(exclusion["excluded_candidate_ids"]) == {"query", "same-group"}
+    assert "overlap-b" in audit["temporal_suppression"]["suppressed_candidate_ids"]
+    assert "close-start" in audit["temporal_suppression"]["start_proximity_suppressed_candidate_ids"]
+    pre_dedup = audit["exclusions_and_deduplication"]["pre_reranking_same_event_deduplication"]
+    assert "event-a-late" in pre_dedup["removed_candidate_ids"]
+    standalone = early_temporal_nms(
+        [start_base, close_start_low_overlap],
+        overlap_threshold=0.49,
+        start_time_delta_hours=None,
+    )
+    assert [row["candidate_id"] for row in standalone.candidates] == ["start-base", "close-start"]
+    assert audit["exclusions_and_deduplication"]["post_ranking_event_deduplication"]["applied"] is True
 
 
 def test_audit_schema_enforces_leakage_boundaries():
@@ -168,10 +260,9 @@ def test_synthetic_pipeline_runs_all_public_stages():
     assert payload["audit"]["candidate_generation"]["sources"] == ["event", "context", "metadata"]
     assert any("metadata" in row["source_membership"] for row in payload["top_k"])
     assert payload["audit"]["output"]["event_distinct"] is True
-    assert payload["audit"]["leakage_check"] == {
-        "uses_validation_or_test_labels_at_inference": False,
-        "uses_cma_numeric_at_inference": False,
-    }
+    assert payload["audit"]["leakage_check"]["passed"] is True
+    assert payload["audit"]["leakage_check"]["forbidden_feature_hits"] == []
+    assert payload["audit"]["leakage_check"]["actual_feature_columns"] == list(FROZEN_FEATURE_NAMES)
 
 
 def test_pipeline_excludes_query_group_from_every_candidate_channel(tmp_path: Path):
@@ -183,25 +274,29 @@ def test_pipeline_excludes_query_group_from_every_candidate_channel(tmp_path: Pa
     eligible = _candidate("eligible", "eligible", "2020-01-03T00", "2020-01-04T00", 2)
     eligible["group_id"] = "other-cyclone"
     try:
+        model = SyntheticFrozenModel()
         result = run_retrieval_pipeline(
             archive=archive,
             query_event=query,
             archive_events=[query, same_group, eligible],
             event_candidates=[query, same_group, eligible],
             anchor_top20_rows=[eligible],
-            frozen_lambdarank_model=SyntheticFrozenModel(),
-            feature_columns=["score_context_rank_prior"],
-            feature_fill_values=pd.Series({"score_context_rank_prior": 0.0}),
+            frozen_lambdarank_model=model,
+            feature_columns=list(FROZEN_FEATURE_NAMES),
+            feature_fill_values=pd.Series(0.0, index=list(FROZEN_FEATURE_NAMES)),
             seed_to_train_queries={},
             train_query_to_positive_candidates={},
             candidate_limit=3,
             top_k=1,
             cadence="6h",
             context_index=ContextIndex(dimension=8, backend="exact"),
+            start_time_delta_hours=12.0,
+            frozen_asset_manifest=_synthetic_manifest(model),
         )
     finally:
         archive.close()
     assert result.top_k["candidate_id"].tolist() == ["eligible"]
-    assert result.audit["exclusions_and_deduplication"]["query_event_excluded"] is True
-    assert result.audit["exclusions_and_deduplication"]["same_group_excluded"] is True
-    assert set(result.audit["exclusions_and_deduplication"]["excluded_candidate_ids"]) == {"query", "same"}
+    exclusion = result.audit["exclusions_and_deduplication"]["query_and_same_group_exclusion"]
+    assert exclusion["query_event_excluded"] is True
+    assert exclusion["same_group_excluded"] is True
+    assert set(exclusion["excluded_candidate_ids"]) == {"query", "same"}

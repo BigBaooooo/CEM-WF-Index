@@ -27,6 +27,7 @@ The `python -m ...` form is required by the current package layout. These comman
 cem_wf_index/final_release/
   offline_lambdarank.py   grouped training, validation selection, report-only test
   online_inference.py     frozen online scoring and anchor-preserving top-20
+  typhoon_frozen_asset_manifest.json  verified model/feature/train-graph contract
   graph_features.py       train-label graph construction and propagation
   candidate_rows.py       candidate normalization, relevance sets, anchor merge
   ranking_utils.py        Recall, nDCG, mAP, and ranked-list helpers
@@ -55,7 +56,7 @@ python -m scripts.run_synthetic_pipeline --help
 python -m scripts.run_synthetic_pipeline
 ```
 
-The example composes a `FingerprintArchive`, a `ContextIndex`, event/context/metadata candidate fusion, early temporal NMS, event deduplication, and a structured audit. Fused rows carry source ranks, channel provenance, and `score_context_rank_prior`. They remain upstream candidate evidence: the frozen final-score stage consumes candidate rows, and validation did not select an additional direct context-score term.
+The example composes a `FingerprintArchive`, a `ContextIndex`, event/context/metadata candidate fusion, early temporal NMS, event deduplication, and a structured audit. Its 24-hour-window demonstration applies the documented overlap rule together with a 12-hour start-time threshold. Fused rows carry source ranks, channel provenance, and `score_context_rank_prior`; the verified frozen model consumes this prior, while validation did not select an additional standalone context term.
 
 ## Released Ranking Protocol
 
@@ -133,9 +134,9 @@ Core row fields are:
 | `source_event_rank`, `source_sequence_rank`, `source_min_rank`, `source_rank_gap` | upstream rank-level candidate evidence |
 | `rank` | retained-ranking order when used as an anchor input |
 
-At fit time, numeric columns are selected after an explicit exclusion list removes identifiers, labels, split metadata, method/profile fields, and `uses_*` policy fields. Because additional numeric columns can otherwise enter the model, a reproducer must audit the emitted `typhoon_v8_22_feature_names.csv` receipt and ensure every selected feature is inference-available. The source-rank pool name is a configured upper-bound label, not a guarantee that every query has that many rows.
+Training and online inference both enforce the same ordered 31-feature contract in `cem_wf_index/final_release/typhoon_frozen_feature_names.csv`. The adjacent frozen-asset manifest binds that order to the verified 31-input LightGBM model and train-only label graph. Missing, reordered, unregistered, or hash-mismatched inputs fail before prediction. Labels and evaluation fields may remain in prepared offline tables, but they are never selected into the model matrix; other numeric diagnostics are reported and ignored. The source-rank pool name is a configured upper-bound label, not a guarantee that every query has that many rows.
 
-The upstream context/fingerprint stage is outside the final ranker's fit function. Candidate tables carry context-derived membership and rank-prior evidence when that upstream path is active; the final ranker does not train the precomputed fingerprint archive. CMA numeric track, intensity, and landfall fields are evaluation-only and are not online ranking inputs.
+The upstream context/fingerprint stage is outside the final ranker's fit function. Candidate tables carry context-derived membership and rank-prior evidence. The hash-verified frozen Booster uses `score_context_rank_prior` in 1,389 splits with gain importance 1,327.8583; validation did not select an additional standalone direct-context term in the final linear blend. The final ranker does not train the precomputed fingerprint archive. CMA numeric track, intensity, and landfall fields are evaluation-only and are not online ranking inputs.
 
 ## Offline Use With Prepared Inputs
 
@@ -167,7 +168,7 @@ The public online function is `rank_v8_22_online`:
 from cem_wf_index.final_release.online_inference import rank_v8_22_online
 ```
 
-It accepts candidate rows, retained top-20 anchor rows, a frozen fitted model, the frozen feature order and fill values, and the two frozen train-label graph mappings. It returns at most 20 rows per query. The online call does not fit a model, read CMA numeric fields, or select a profile.
+It accepts candidate rows, retained top-20 anchor rows, a frozen fitted model, the frozen feature order and fill values, and the two frozen train-label graph mappings. Before graph propagation or prediction, it verifies feature order/dimension, model identity, Context importance, and train-graph identity against the published frozen-asset manifest. It returns at most 20 rows per query and attaches the executable input-audit receipt to the returned frame. The online call does not fit a model, read CMA numeric fields, or select a profile.
 
 ## Scope and Claims
 
