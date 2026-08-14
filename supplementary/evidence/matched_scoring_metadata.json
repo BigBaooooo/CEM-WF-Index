@@ -1,0 +1,10 @@
+{
+  "study": "Matched downstream scoring",
+  "scope": "development control",
+  "metric": "nDCG@10",
+  "query_count": 62,
+  "full_pool_size": 1000,
+  "bootstrap_resamples": 10000,
+  "bootstrap_seed": 240813,
+  "downstream_scorer": "same previously sealed scorer"
+}

@@ -1,0 +1,11 @@
+{
+  "study": "ClimateNet atmospheric-river portability",
+  "scope": "fold-local development",
+  "metric": "continuous nDCG@10",
+  "object_count": 492,
+  "query_count": 86,
+  "temporal_fold_count": 3,
+  "model_seed_count": 5,
+  "bootstrap_resamples": 10000,
+  "bootstrap_seed": 308000
+}

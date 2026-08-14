@@ -1,0 +1,12 @@
+{
+  "measurement": "supplementary audit-payload construction and serialization",
+  "query_count": 56,
+  "returned_record_count": 1120,
+  "field_completeness": 1.0,
+  "score_consistency": 1.0,
+  "leakage_check_pass_rate": 1.0,
+  "p50_overhead_ms_per_query": 0.1229,
+  "p95_overhead_ms_per_query": 0.197315,
+  "p95_payload_bytes_per_query": 7178.75,
+  "example": "The synthetic pipeline emits one complete audit record without real event identifiers."
+}

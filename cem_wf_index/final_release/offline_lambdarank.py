@@ -35,6 +35,13 @@ from cem_wf_index.final_release.physical_errors import typhoon_top1_physical_err
 from cem_wf_index.final_release.graph_features import _col_z, _graph_scores, _query_z, _train_graph
 from cem_wf_index.final_release.candidate_rows import TARGET, _anchor_merge, _read_rows, _relevant, _safe_float
 from cem_wf_index.final_release.ranking_utils import _metrics, _ranked_from_frame
+from cem_wf_index.final_release.feature_contract import (
+    FROZEN_FEATURE_NAMES,
+    graph_asset_sha256,
+    input_audit_receipt,
+    model_sha256,
+    validate_feature_contract,
+)
 
 
 METHOD_NAME = "CEM-WF-Index v8.22 Label-Graph LambdaRank"
@@ -118,33 +125,8 @@ def _add_graph_features(frame: pd.DataFrame, seed_to_queries: dict[str, list[tup
 
 
 def _feature_columns(frame: pd.DataFrame) -> list[str]:
-    forbidden_exact = {
-        "query_id",
-        "candidate_id",
-        "task",
-        "split_role",
-        "is_gt_top20",
-        "rank",
-        "grade",
-        "method_variant",
-        "selected_model",
-        "candidate_pool",
-        "feature_profile",
-        "tiebreaker_profile",
-        "tail_profile",
-        "method_definition",
-        "context_only_claim_status",
-        "pool_source",
-        "v7_4_merge_source",
-    }
-    cols: list[str] = []
-    for col in frame.columns:
-        lower = col.lower()
-        if col in forbidden_exact or lower.startswith("uses_") or "cma_numeric" in lower:
-            continue
-        if pd.api.types.is_numeric_dtype(frame[col]):
-            cols.append(col)
-    return cols
+    validate_feature_contract(frame)
+    return list(FROZEN_FEATURE_NAMES)
 
 
 def _matrix(frame: pd.DataFrame, cols: list[str], fill: pd.Series | None = None) -> tuple[np.ndarray, pd.Series]:
@@ -176,7 +158,12 @@ def _rank_with_score(frame: pd.DataFrame, score: np.ndarray, profile: str) -> pd
         g["uses_cma_gt_labels_for_training"] = True
         g["uses_cma_numeric_at_inference"] = False
         g["uses_test_for_tuning"] = False
-        g["trains_new_fingerprint"] = False
+        g["fingerprint_input_scope"] = "upstream_precomputed_background_context"
+        g["context_candidate_path"] = "upstream"
+        g["context_rank_prior_available"] = "score_context_rank_prior" in g.columns
+        g["context_used_for_candidate_generation"] = True
+        g["context_rank_prior_available_to_lambdarank"] = True
+        g["standalone_direct_context_term_selected"] = False
         pieces.append(g)
     return pd.concat(pieces, ignore_index=True)
 
@@ -310,6 +297,9 @@ def main() -> None:
     test_f = _add_graph_features(_add_derived_features(test), seed_to_queries, query_to_pos)
 
     feature_cols = _feature_columns(train_f)
+    train_feature_audit = input_audit_receipt(train_f, feature_cols)
+    validation_feature_audit = input_audit_receipt(val_f, feature_cols)
+    test_feature_audit = input_audit_receipt(test_f, feature_cols)
     x_train, fill = _matrix(train_f, feature_cols)
     x_val, _ = _matrix(val_f, feature_cols, fill=fill)
     x_test, _ = _matrix(test_f, feature_cols, fill=fill)
@@ -352,7 +342,12 @@ def main() -> None:
                     "uses_cma_gt_labels_for_training": True,
                     "uses_cma_numeric_at_inference": False,
                     "uses_test_for_tuning": False,
-                    "trains_new_fingerprint": False,
+                    "fingerprint_input_scope": "upstream_precomputed_background_context",
+                    "context_candidate_path": "upstream",
+                    "context_rank_prior_available": "score_context_rank_prior" in val_f.columns,
+                    "context_used_for_candidate_generation": True,
+                    "context_rank_prior_available_to_lambdarank": True,
+                    "standalone_direct_context_term_selected": False,
                     "method_definition": METHOD_DEFINITION,
                 }
                 rows.append(row)
@@ -375,6 +370,22 @@ def main() -> None:
 
     selected_model_name = str(selected["model_name"])
     model, _, _, _ = selected_frames[selected_model_name]
+    frozen_feature_audit = input_audit_receipt(
+        test_f,
+        feature_cols,
+        model=model,
+        seed_to_train_queries=seed_to_queries,
+        train_query_to_positive_candidates=query_to_pos,
+    )
+    feature_asset_receipt = {
+        "train": train_feature_audit,
+        "validation": validation_feature_audit,
+        "test": test_feature_audit,
+        "model_sha256": model_sha256(model),
+        "graph_asset_sha256": graph_asset_sha256(seed_to_queries, query_to_pos),
+        "frozen_asset_verification": frozen_feature_audit,
+    }
+    _write_json(details_dir / "typhoon_frozen_feature_audit.json", feature_asset_receipt)
     test_model_score = _score_model(model, x_test)
     val_model_score = _score_model(model, x_val)
     selected_val_score = None
@@ -441,13 +452,24 @@ def main() -> None:
             and _safe_float(test_physical.get("Landfall dist/km")) < TARGET["Landfall dist/km"]
         ),
         "feature_count": len(feature_cols),
+        "feature_list_sha256": train_feature_audit["feature_list_sha256"],
+        "model_sha256": feature_asset_receipt["model_sha256"],
+        "graph_asset_sha256": feature_asset_receipt["graph_asset_sha256"],
         "graph_manifest": graph_manifest,
         "test_grid_policy": "test ranking computed only after validation-selected model/blend/anchor profile",
         "uses_cma_gt_labels_for_training": True,
         "uses_cma_numeric_at_inference": False,
         "uses_test_for_tuning": False,
-        "trains_new_fingerprint": False,
-        "context_only_claim_status": "pending_not_used_by_full_context_weight_0",
+        "fingerprint_input_scope": "upstream_precomputed_background_context",
+        "context_candidate_path": "upstream",
+        "context_rank_prior_available": "score_context_rank_prior" in test_f.columns,
+        "context_used_for_candidate_generation": True,
+        "context_rank_prior_used_by_frozen_model": frozen_feature_audit[
+            "context_rank_prior_used_by_frozen_model"
+        ],
+        "context_rank_prior_split_count": frozen_feature_audit["context_rank_prior_split_count"],
+        "context_rank_prior_gain": frozen_feature_audit["context_rank_prior_gain"],
+        "standalone_direct_context_term_selected": False,
         "created_at": datetime.now().isoformat(timespec="seconds"),
     }
     pd.DataFrame([summary]).to_csv(details_dir / "typhoon_v8_22_lambdarank_selected_summary.csv", index=False)

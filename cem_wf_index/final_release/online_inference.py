@@ -7,7 +7,8 @@ train-label graph and trained the LightGBM LambdaRank model.
 Policy boundary:
 - train-split CMA GT labels are used only by the offline graph/model.
 - online/test ranking must not read CMA numeric track/intensity/landfall fields.
-- the new CMA-STI-compatible fingerprint is not trained or consumed here.
+- precomputed ERA5 background-context fingerprints enter through the upstream
+  candidate rows; this downstream reference does not train that representation.
 """
 
 from __future__ import annotations
@@ -17,6 +18,9 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+
+from cem_wf_index.final_release.feature_contract import input_audit_receipt
+from cem_wf_index.final_release.feature_contract import verify_frozen_asset_bindings
 
 
 METHOD_DEFINITION = "v8_22_label_graph_lambdarank"
@@ -120,9 +124,27 @@ def rank_v8_22_online(
     feature_fill_values: pd.Series,
     seed_to_train_queries: dict[str, list[tuple[str, float]]],
     train_query_to_positive_candidates: dict[str, dict[str, float]],
+    *,
+    frozen_asset_manifest: dict[str, Any] | str | None = None,
 ) -> pd.DataFrame:
     """Return V8.22 top20 analogues with provenance flags."""
+    # Asset identity is checked before graph features or model predictions are computed.
+    verify_frozen_asset_bindings(
+        frozen_lambdarank_model,
+        feature_columns,
+        seed_to_train_queries,
+        train_query_to_positive_candidates,
+        frozen_asset_manifest=frozen_asset_manifest,
+    )
     frame = add_v8_22_online_features(candidate_rows, seed_to_train_queries, train_query_to_positive_candidates)
+    feature_audit = input_audit_receipt(
+        frame,
+        feature_columns,
+        model=frozen_lambdarank_model,
+        seed_to_train_queries=seed_to_train_queries,
+        train_query_to_positive_candidates=train_query_to_positive_candidates,
+        frozen_asset_manifest=frozen_asset_manifest,
+    )
     x = frame[feature_columns].apply(pd.to_numeric, errors="coerce").fillna(feature_fill_values).to_numpy(np.float32)
     model_score = query_z(frame, np.asarray(frozen_lambdarank_model.predict(x), dtype=float))
     blend_score = (
@@ -158,8 +180,22 @@ def rank_v8_22_online(
             row["uses_cma_gt_labels_for_training"] = True
             row["uses_cma_numeric_at_inference"] = False
             row["uses_test_for_tuning"] = False
-            row["trains_new_fingerprint"] = False
-            row["context_only_claim_status"] = "pending_not_used_by_full_context_weight_0"
+            row["fingerprint_input_scope"] = "upstream_precomputed_background_context"
+            row["context_candidate_path"] = "upstream"
+            row["context_rank_prior_available"] = "score_context_rank_prior" in frame.columns
+            row["context_used_for_candidate_generation"] = True
+            row["context_rank_prior_used_by_frozen_model"] = feature_audit[
+                "context_rank_prior_used_by_frozen_model"
+            ]
+            row["context_rank_prior_split_count"] = feature_audit["context_rank_prior_split_count"]
+            row["context_rank_prior_gain"] = feature_audit["context_rank_prior_gain"]
+            row["standalone_direct_context_term_selected"] = False
+            row["feature_list_sha256"] = feature_audit["feature_list_sha256"]
+            row["model_sha256"] = feature_audit.get("model_sha256")
+            row["graph_asset_sha256"] = feature_audit["graph_asset_sha256"]
+            row["graph_hash_match"] = feature_audit["graph_hash_match"]
             rows.append(row)
         ranked_pieces.append(pd.DataFrame(rows))
-    return pd.concat(ranked_pieces, ignore_index=True)
+    result = pd.concat(ranked_pieces, ignore_index=True)
+    result.attrs["feature_audit"] = feature_audit
+    return result
